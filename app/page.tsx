@@ -3,42 +3,266 @@
 export const dynamic = "force-dynamic";
 
 import { useEffect, useState } from "react";
-import { supabase, DiaryEntry } from "@/lib/supabase";
+import { supabase, EntryMeta } from "@/lib/supabase";
 
+const MONTHS = [
+  "January","February","March","April","May","June",
+  "July","August","September","October","November","December",
+];
+const MONTHS_SHORT = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const DAYS = ["Su","Mo","Tu","We","Th","Fr","Sa"];
+
+function toLocalDate(dateStr: string) {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
+
+// ── Heatmap ──────────────────────────────────────────────────────────────────
+function Heatmap({ entries, selectedDate, onDayClick }: {
+  entries: EntryMeta[];
+  selectedDate: string;
+  onDayClick: (date: string) => void;
+}) {
+  const todayStr = new Date().toISOString().split("T")[0];
+  const year = new Date().getFullYear();
+  const entryDates = new Set(entries.map((e) => e.entry_date));
+
+  const jan1 = new Date(year, 0, 1);
+  const start = new Date(jan1);
+  start.setDate(start.getDate() - start.getDay());
+
+  const dec31 = new Date(year, 11, 31);
+
+  type Cell = { date: string; inYear: boolean; isToday: boolean; hasEntry: boolean; isFuture: boolean };
+  const weeks: Cell[][] = [];
+  const cur = new Date(start);
+
+  while (cur <= dec31) {
+    const week: Cell[] = [];
+    for (let d = 0; d < 7; d++) {
+      const dateStr = cur.toISOString().split("T")[0];
+      week.push({
+        date: dateStr,
+        inYear: cur.getFullYear() === year,
+        isToday: dateStr === todayStr,
+        hasEntry: entryDates.has(dateStr),
+        isFuture: dateStr > todayStr,
+      });
+      cur.setDate(cur.getDate() + 1);
+    }
+    weeks.push(week);
+  }
+
+  const monthLabels: { label: string; weekIdx: number }[] = [];
+  for (let m = 0; m < 12; m++) {
+    const first = new Date(year, m, 1);
+    const diff = Math.floor((first.getTime() - start.getTime()) / 86400000);
+    monthLabels.push({ label: MONTHS_SHORT[m], weekIdx: Math.floor(diff / 7) });
+  }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-3">
+        <span className="text-xs font-medium text-stone-500 uppercase tracking-widest">
+          {year} · {entries.length} {entries.length === 1 ? "entry" : "entries"}
+        </span>
+      </div>
+      <div className="overflow-x-auto pb-1">
+        <div className="inline-block">
+          {/* Month labels */}
+          <div className="flex mb-1">
+            {weeks.map((_, wi) => {
+              const lbl = monthLabels.find((l) => l.weekIdx === wi);
+              return (
+                <div key={wi} style={{ width: 14, marginRight: 2 }} className="text-[9px] text-stone-400 overflow-visible whitespace-nowrap">
+                  {lbl ? lbl.label : ""}
+                </div>
+              );
+            })}
+          </div>
+          {/* Grid */}
+          <div className="flex gap-[2px]">
+            {weeks.map((week, wi) => (
+              <div key={wi} className="flex flex-col gap-[2px]">
+                {week.map((day, di) => {
+                  const isSelected = day.date === selectedDate;
+                  let bg = "";
+                  if (!day.inYear) bg = "invisible pointer-events-none";
+                  else if (day.isFuture) bg = "bg-stone-100 cursor-default";
+                  else if (day.hasEntry) bg = "bg-green-500 hover:bg-green-400 cursor-pointer";
+                  else bg = "bg-stone-200 hover:bg-stone-300 cursor-pointer";
+
+                  return (
+                    <div
+                      key={di}
+                      title={day.date}
+                      onClick={() => day.inYear && !day.isFuture && onDayClick(day.date)}
+                      className={[
+                        "w-[12px] h-[12px] rounded-[2px] transition-colors",
+                        bg,
+                        isSelected ? "ring-[1.5px] ring-stone-700 ring-offset-[1px]" : "",
+                      ].join(" ")}
+                    />
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+          {/* Legend */}
+          <div className="flex items-center gap-1.5 mt-2 justify-end">
+            <span className="text-[9px] text-stone-400">Less</span>
+            {["bg-stone-200","bg-green-300","bg-green-400","bg-green-500"].map((c) => (
+              <div key={c} className={`w-[10px] h-[10px] rounded-[2px] ${c}`} />
+            ))}
+            <span className="text-[9px] text-stone-400">More</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Month Calendar ────────────────────────────────────────────────────────────
+function MonthCalendar({ year, month, entries, selectedDate, onDayClick, onPrevMonth, onNextMonth }: {
+  year: number;
+  month: number;
+  entries: EntryMeta[];
+  selectedDate: string;
+  onDayClick: (date: string) => void;
+  onPrevMonth: () => void;
+  onNextMonth: () => void;
+}) {
+  const todayStr = new Date().toISOString().split("T")[0];
+  const entryDates = new Set(entries.map((e) => e.entry_date));
+
+  const firstDay = new Date(year, month, 1);
+  const lastDay = new Date(year, month + 1, 0);
+  const startOffset = firstDay.getDay();
+
+  const cells: (string | null)[] = [];
+  for (let i = 0; i < startOffset; i++) cells.push(null);
+  for (let d = 1; d <= lastDay.getDate(); d++) {
+    cells.push(`${year}-${String(month + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`);
+  }
+  while (cells.length % 7 !== 0) cells.push(null);
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-3">
+        <button onClick={onPrevMonth} className="w-7 h-7 flex items-center justify-center text-stone-400 hover:text-stone-700 hover:bg-stone-100 rounded-md transition text-lg leading-none">
+          ‹
+        </button>
+        <span className="text-sm font-medium text-stone-700">{MONTHS[month]} {year}</span>
+        <button onClick={onNextMonth} className="w-7 h-7 flex items-center justify-center text-stone-400 hover:text-stone-700 hover:bg-stone-100 rounded-md transition text-lg leading-none">
+          ›
+        </button>
+      </div>
+      <div className="grid grid-cols-7 mb-1">
+        {DAYS.map((d) => (
+          <div key={d} className="text-center text-[10px] text-stone-400 font-medium py-1">{d}</div>
+        ))}
+      </div>
+      <div className="grid grid-cols-7 gap-y-1">
+        {cells.map((dateStr, i) => {
+          if (!dateStr) return <div key={i} />;
+          const hasEntry = entryDates.has(dateStr);
+          const isSelected = dateStr === selectedDate;
+          const isToday = dateStr === todayStr;
+          const isFuture = dateStr > todayStr;
+          const day = parseInt(dateStr.split("-")[2]);
+
+          return (
+            <button
+              key={i}
+              onClick={() => !isFuture && onDayClick(dateStr)}
+              disabled={isFuture}
+              className={[
+                "relative flex flex-col items-center justify-center h-9 rounded-lg text-sm transition-colors",
+                isSelected ? "bg-stone-800 text-white" : "",
+                !isSelected && isToday ? "bg-stone-100 font-semibold text-stone-800" : "",
+                !isSelected && !isToday && !isFuture ? "hover:bg-stone-50 text-stone-700 cursor-pointer" : "",
+                isFuture ? "text-stone-300 cursor-default" : "",
+              ].join(" ")}
+            >
+              <span className="leading-none">{day}</span>
+              {hasEntry && (
+                <span className={`absolute bottom-1 w-1 h-1 rounded-full ${isSelected ? "bg-green-400" : "bg-green-500"}`} />
+              )}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── Main Page ─────────────────────────────────────────────────────────────────
 export default function Home() {
-  const [entries, setEntries] = useState<DiaryEntry[]>([]);
+  const todayStr = new Date().toISOString().split("T")[0];
+
+  const [entries, setEntries] = useState<EntryMeta[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedDate, setSelectedDate] = useState(todayStr);
+  const [calMonth, setCalMonth] = useState(new Date().getMonth());
+  const [calYear, setCalYear] = useState(new Date().getFullYear());
+
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const [currentEntryId, setCurrentEntryId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [loadingEntry, setLoadingEntry] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function fetchEntries() {
-    const { data, error } = await supabase
+    const year = new Date().getFullYear();
+    const { data } = await supabase
       .from("diary_entries")
-      .select("*")
-      .order("created_at", { ascending: false });
-    if (error) setError(error.message);
-    else setEntries(data ?? []);
+      .select("id, entry_date, title")
+      .gte("entry_date", `${year}-01-01`)
+      .lte("entry_date", `${year}-12-31`);
+    setEntries(data ?? []);
     setLoading(false);
   }
 
-  useEffect(() => {
-    fetchEntries();
-  }, []);
-
-  function startEdit(entry: DiaryEntry) {
-    setEditingId(entry.id);
-    setTitle(entry.title);
-    setContent(entry.content);
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }
-
-  function cancelEdit() {
-    setEditingId(null);
+  async function loadEntryForDate(date: string) {
+    setLoadingEntry(true);
     setTitle("");
     setContent("");
+    setCurrentEntryId(null);
+    setError(null);
+
+    const { data } = await supabase
+      .from("diary_entries")
+      .select("id, title, content")
+      .eq("entry_date", date)
+      .maybeSingle();
+
+    if (data) {
+      setTitle(data.title);
+      setContent(data.content);
+      setCurrentEntryId(data.id);
+    }
+    setLoadingEntry(false);
+  }
+
+  useEffect(() => { fetchEntries(); }, []);
+  useEffect(() => { loadEntryForDate(selectedDate); }, [selectedDate]);
+
+  function handleDayClick(date: string) {
+    setSelectedDate(date);
+    const d = toLocalDate(date);
+    setCalMonth(d.getMonth());
+    setCalYear(d.getFullYear());
+  }
+
+  function prevMonth() {
+    if (calMonth === 0) { setCalMonth(11); setCalYear((y) => y - 1); }
+    else setCalMonth((m) => m - 1);
+  }
+
+  function nextMonth() {
+    if (calMonth === 11) { setCalMonth(0); setCalYear((y) => y + 1); }
+    else setCalMonth((m) => m + 1);
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -47,41 +271,42 @@ export default function Home() {
     setSaving(true);
     setError(null);
 
-    if (editingId) {
-      const { error } = await supabase
-        .from("diary_entries")
-        .update({ title: title.trim(), content: content.trim(), updated_at: new Date().toISOString() })
-        .eq("id", editingId);
+    const payload = {
+      title: title.trim(),
+      content: content.trim(),
+      entry_date: selectedDate,
+      updated_at: new Date().toISOString(),
+    };
+
+    if (currentEntryId) {
+      const { error } = await supabase.from("diary_entries").update(payload).eq("id", currentEntryId);
       if (error) setError(error.message);
     } else {
-      const { error } = await supabase
-        .from("diary_entries")
-        .insert({ title: title.trim(), content: content.trim() });
+      const { data, error } = await supabase.from("diary_entries").insert(payload).select("id").single();
       if (error) setError(error.message);
+      else setCurrentEntryId(data.id);
     }
 
-    setTitle("");
-    setContent("");
-    setEditingId(null);
     setSaving(false);
     fetchEntries();
   }
 
-  async function handleDelete(id: string) {
-    const { error } = await supabase.from("diary_entries").delete().eq("id", id);
-    if (error) setError(error.message);
-    else setEntries((prev) => prev.filter((e) => e.id !== id));
+  async function handleDelete() {
+    if (!currentEntryId) return;
+    await supabase.from("diary_entries").delete().eq("id", currentEntryId);
+    setTitle("");
+    setContent("");
+    setCurrentEntryId(null);
+    fetchEntries();
   }
 
-  function formatDate(iso: string) {
-    return new Date(iso).toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
+  function formatSelectedDate(dateStr: string) {
+    return toLocalDate(dateStr).toLocaleDateString("en-US", {
+      weekday: "long", year: "numeric", month: "long", day: "numeric",
     });
   }
+
+  const isToday = selectedDate === todayStr;
 
   return (
     <main className="min-h-screen bg-stone-50 text-stone-800">
@@ -89,82 +314,75 @@ export default function Home() {
         <h1 className="text-3xl font-semibold mb-1 tracking-tight">My Diary</h1>
         <p className="text-stone-400 text-sm mb-8">A quiet place for your thoughts.</p>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="mb-10 bg-white border border-stone-200 rounded-xl p-6 shadow-sm">
-          <h2 className="text-sm font-medium text-stone-500 uppercase tracking-widest mb-4">
-            {editingId ? "Edit Entry" : "New Entry"}
-          </h2>
-          <input
-            type="text"
-            placeholder="Title"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            required
-            className="w-full mb-3 px-3 py-2 border border-stone-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-stone-300"
+        {/* Heatmap */}
+        <div className="bg-white border border-stone-200 rounded-xl p-5 shadow-sm mb-5">
+          {loading ? (
+            <div className="h-24 flex items-center justify-center text-stone-300 text-sm">Loading…</div>
+          ) : (
+            <Heatmap entries={entries} selectedDate={selectedDate} onDayClick={handleDayClick} />
+          )}
+        </div>
+
+        {/* Calendar */}
+        <div className="bg-white border border-stone-200 rounded-xl p-5 shadow-sm mb-5">
+          <MonthCalendar
+            year={calYear}
+            month={calMonth}
+            entries={entries}
+            selectedDate={selectedDate}
+            onDayClick={handleDayClick}
+            onPrevMonth={prevMonth}
+            onNextMonth={nextMonth}
           />
-          <textarea
-            placeholder="What's on your mind?"
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            required
-            rows={5}
-            className="w-full mb-4 px-3 py-2 border border-stone-200 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-stone-300"
-          />
-          {error && <p className="text-red-500 text-xs mb-3">{error}</p>}
-          <div className="flex gap-2">
-            <button
-              type="submit"
-              disabled={saving}
-              className="px-4 py-2 bg-stone-800 text-white text-sm rounded-lg hover:bg-stone-700 disabled:opacity-50 transition"
-            >
-              {saving ? "Saving…" : editingId ? "Update" : "Save Entry"}
-            </button>
-            {editingId && (
-              <button
-                type="button"
-                onClick={cancelEdit}
-                className="px-4 py-2 text-sm text-stone-500 border border-stone-200 rounded-lg hover:bg-stone-50 transition"
-              >
-                Cancel
+        </div>
+
+        {/* Entry form */}
+        <div className="bg-white border border-stone-200 rounded-xl p-6 shadow-sm">
+          <div className="flex items-start justify-between mb-4">
+            <div>
+              <p className="font-medium text-stone-800">{formatSelectedDate(selectedDate)}</p>
+              <p className="text-xs text-stone-400 mt-0.5">
+                {isToday ? "Today · " : ""}{currentEntryId ? "Edit entry" : "No entry yet"}
+              </p>
+            </div>
+            {currentEntryId && (
+              <button onClick={handleDelete} className="text-xs text-red-400 hover:text-red-600 transition shrink-0">
+                Delete
               </button>
             )}
           </div>
-        </form>
 
-        {/* Entries */}
-        {loading ? (
-          <p className="text-stone-400 text-sm text-center py-10">Loading…</p>
-        ) : entries.length === 0 ? (
-          <p className="text-stone-400 text-sm text-center py-10">No entries yet. Write your first one above.</p>
-        ) : (
-          <ul className="space-y-4">
-            {entries.map((entry) => (
-              <li key={entry.id} className="bg-white border border-stone-200 rounded-xl p-5 shadow-sm">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-medium text-stone-800 truncate">{entry.title}</h3>
-                    <p className="text-xs text-stone-400 mt-0.5">{formatDate(entry.created_at)}</p>
-                  </div>
-                  <div className="flex gap-2 shrink-0">
-                    <button
-                      onClick={() => startEdit(entry)}
-                      className="text-xs text-stone-500 hover:text-stone-800 transition"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => handleDelete(entry.id)}
-                      className="text-xs text-red-400 hover:text-red-600 transition"
-                    >
-                      Delete
-                    </button>
-                  </div>
-                </div>
-                <p className="mt-3 text-sm text-stone-600 whitespace-pre-wrap">{entry.content}</p>
-              </li>
-            ))}
-          </ul>
-        )}
+          {loadingEntry ? (
+            <div className="py-8 text-center text-stone-300 text-sm">Loading…</div>
+          ) : (
+            <form onSubmit={handleSubmit}>
+              <input
+                type="text"
+                placeholder="Title"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                required
+                className="w-full mb-3 px-3 py-2 border border-stone-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-stone-300"
+              />
+              <textarea
+                placeholder="What's on your mind?"
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+                required
+                rows={6}
+                className="w-full mb-4 px-3 py-2 border border-stone-200 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-stone-300"
+              />
+              {error && <p className="text-red-500 text-xs mb-3">{error}</p>}
+              <button
+                type="submit"
+                disabled={saving}
+                className="px-4 py-2 bg-stone-800 text-white text-sm rounded-lg hover:bg-stone-700 disabled:opacity-50 transition"
+              >
+                {saving ? "Saving…" : currentEntryId ? "Update" : "Save Entry"}
+              </button>
+            </form>
+          )}
+        </div>
       </div>
     </main>
   );
