@@ -3,6 +3,7 @@
 export const dynamic = "force-dynamic";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { supabase, EntryMeta, DiaryEntry } from "@/lib/supabase";
 
 const MONTHS = [
@@ -396,9 +397,9 @@ export default function Home() {
             <ul className="space-y-3">
               {allNotes.map((note) => (
                 <li key={note.id}>
-                  <button
-                    onClick={() => handleDayClick(note.entry_date)}
-                    className="w-full text-left bg-white border border-stone-200 rounded-xl p-5 shadow-sm hover:border-stone-300 transition group"
+                  <Link
+                    href={`/entry/${note.entry_date}`}
+                    className="block bg-white border border-stone-200 rounded-xl p-5 shadow-sm hover:border-stone-300 transition group"
                   >
                     <div className="flex items-center justify-between gap-4 mb-2">
                       <span className="font-medium text-stone-800 group-hover:text-stone-900 truncate">
@@ -413,7 +414,7 @@ export default function Home() {
                     <p className="text-sm text-stone-500 line-clamp-2 whitespace-pre-wrap">
                       {note.content}
                     </p>
-                  </button>
+                  </Link>
                 </li>
               ))}
             </ul>
