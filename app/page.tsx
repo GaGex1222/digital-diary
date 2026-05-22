@@ -3,7 +3,7 @@
 export const dynamic = "force-dynamic";
 
 import { useEffect, useState } from "react";
-import { supabase, EntryMeta } from "@/lib/supabase";
+import { supabase, EntryMeta, DiaryEntry } from "@/lib/supabase";
 
 const MONTHS = [
   "January","February","March","April","May","June",
@@ -201,6 +201,7 @@ export default function Home() {
   const todayStr = new Date().toISOString().split("T")[0];
 
   const [entries, setEntries] = useState<EntryMeta[]>([]);
+  const [allNotes, setAllNotes] = useState<DiaryEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState(todayStr);
   const [calMonth, setCalMonth] = useState(new Date().getMonth());
@@ -217,10 +218,13 @@ export default function Home() {
     const year = new Date().getFullYear();
     const { data } = await supabase
       .from("diary_entries")
-      .select("id, entry_date, title")
+      .select("id, entry_date, title, content, created_at, updated_at")
       .gte("entry_date", `${year}-01-01`)
-      .lte("entry_date", `${year}-12-31`);
-    setEntries(data ?? []);
+      .lte("entry_date", `${year}-12-31`)
+      .order("entry_date", { ascending: false });
+    const rows = data ?? [];
+    setEntries(rows.map(({ id, entry_date, title }) => ({ id, entry_date, title })));
+    setAllNotes(rows as DiaryEntry[]);
     setLoading(false);
   }
 
@@ -383,6 +387,38 @@ export default function Home() {
             </form>
           )}
         </div>
+        {/* All notes */}
+        {!loading && allNotes.length > 0 && (
+          <div className="mt-10">
+            <h2 className="text-xs font-medium text-stone-400 uppercase tracking-widest mb-4">
+              All entries · {allNotes.length}
+            </h2>
+            <ul className="space-y-3">
+              {allNotes.map((note) => (
+                <li key={note.id}>
+                  <button
+                    onClick={() => handleDayClick(note.entry_date)}
+                    className="w-full text-left bg-white border border-stone-200 rounded-xl p-5 shadow-sm hover:border-stone-300 transition group"
+                  >
+                    <div className="flex items-center justify-between gap-4 mb-2">
+                      <span className="font-medium text-stone-800 group-hover:text-stone-900 truncate">
+                        {note.title}
+                      </span>
+                      <span className="text-xs text-stone-400 shrink-0">
+                        {toLocalDate(note.entry_date).toLocaleDateString("en-US", {
+                          month: "short", day: "numeric", year: "numeric",
+                        })}
+                      </span>
+                    </div>
+                    <p className="text-sm text-stone-500 line-clamp-2 whitespace-pre-wrap">
+                      {note.content}
+                    </p>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
     </main>
   );
