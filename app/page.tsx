@@ -289,10 +289,20 @@ export default function Home() {
     setImagePreview(URL.createObjectURL(compressed));
   }
 
-  function removeImage() {
+  async function removeImage() {
+    // Delete from Supabase Storage if it's an existing uploaded image
+    if (existingImageUrl) {
+      const path = existingImageUrl.split("/diary-images/")[1];
+      if (path) await supabase.storage.from("diary-images").remove([path]);
+      // Also clear it from the DB row right away
+      if (currentEntryId) {
+        await supabase.from("diary_entries").update({ image_url: null }).eq("id", currentEntryId);
+      }
+    }
     setImageFile(null);
     setImagePreview(null);
     setExistingImageUrl(null);
+    fetchEntries();
   }
 
   async function uploadImage(file: File): Promise<string | null> {
