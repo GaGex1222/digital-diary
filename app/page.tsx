@@ -260,11 +260,33 @@ export default function Home() {
     setLoadingEntry(false);
   }
 
-  function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
+  function compressImage(file: File, maxWidth = 1200, quality = 0.75): Promise<File> {
+    return new Promise((resolve) => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        const scale = Math.min(1, maxWidth / img.width);
+        const canvas = document.createElement("canvas");
+        canvas.width = img.width * scale;
+        canvas.height = img.height * scale;
+        canvas.getContext("2d")!.drawImage(img, 0, 0, canvas.width, canvas.height);
+        canvas.toBlob(
+          (blob) => resolve(new File([blob!], file.name, { type: "image/jpeg" })),
+          "image/jpeg",
+          quality
+        );
+      };
+      img.src = url;
+    });
+  }
+
+  async function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    setImageFile(file);
-    setImagePreview(URL.createObjectURL(file));
+    const compressed = await compressImage(file);
+    setImageFile(compressed);
+    setImagePreview(URL.createObjectURL(compressed));
   }
 
   function removeImage() {
