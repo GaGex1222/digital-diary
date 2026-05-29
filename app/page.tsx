@@ -215,11 +215,16 @@ export default function Home() {
   const [loadingEntry, setLoadingEntry] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // image
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [existingImageUrl, setExistingImageUrl] = useState<string | null>(null);
+
   async function fetchEntries() {
     const year = new Date().getFullYear();
     const { data } = await supabase
       .from("diary_entries")
-      .select("id, entry_date, title, content, created_at, updated_at")
+      .select("id, entry_date, title, content, image_url, created_at, updated_at")
       .gte("entry_date", `${year}-01-01`)
       .lte("entry_date", `${year}-12-31`)
       .order("entry_date", { ascending: false });
@@ -234,11 +239,14 @@ export default function Home() {
     setTitle("");
     setContent("");
     setCurrentEntryId(null);
+    setImageFile(null);
+    setImagePreview(null);
+    setExistingImageUrl(null);
     setError(null);
 
     const { data } = await supabase
       .from("diary_entries")
-      .select("id, title, content")
+      .select("id, title, content, image_url")
       .eq("entry_date", date)
       .maybeSingle();
 
@@ -246,8 +254,31 @@ export default function Home() {
       setTitle(data.title);
       setContent(data.content);
       setCurrentEntryId(data.id);
+      setExistingImageUrl(data.image_url ?? null);
+      setImagePreview(data.image_url ?? null);
     }
     setLoadingEntry(false);
+  }
+
+  function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImageFile(file);
+    setImagePreview(URL.createObjectURL(file));
+  }
+
+  function removeImage() {
+    setImageFile(null);
+    setImagePreview(null);
+    setExistingImageUrl(null);
+  }
+
+  async function uploadImage(file: File): Promise<string | null> {
+    const ext = file.name.split(".").pop();
+    const path = `${selectedDate}-${Date.now()}.${ext}`;
+    const { error } = await supabase.storage.from("diary-images").upload(path, file, { upsert: true });
+    if (error) { setError(error.message); return null; }
+    return supabase.storage.from("diary-images").getPublicUrl(path).data.publicUrl;
   }
 
   useEffect(() => { fetchEntries(); }, []);
@@ -276,10 +307,17 @@ export default function Home() {
     setSaving(true);
     setError(null);
 
+    let imageUrl: string | null = existingImageUrl;
+    if (imageFile) {
+      imageUrl = await uploadImage(imageFile);
+      if (!imageUrl) { setSaving(false); return; }
+    }
+
     const payload = {
       title: title.trim(),
       content: content.trim(),
       entry_date: selectedDate,
+      image_url: imageUrl,
       updated_at: new Date().toISOString(),
     };
 
@@ -302,6 +340,9 @@ export default function Home() {
     setTitle("");
     setContent("");
     setCurrentEntryId(null);
+    setImageFile(null);
+    setImagePreview(null);
+    setExistingImageUrl(null);
     fetchEntries();
   }
 
@@ -377,6 +418,30 @@ export default function Home() {
                 rows={6}
                 className="w-full mb-4 px-3 py-2 border border-stone-200 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-stone-300"
               />
+              {/* Image upload */}
+              <div className="mb-4">
+                {imagePreview ? (
+                  <div className="relative inline-block">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={imagePreview} alt="Preview" className="w-full max-h-56 object-cover rounded-lg" />
+                    <button
+                      type="button"
+                      onClick={removeImage}
+                      className="absolute top-2 right-2 bg-black/50 hover:bg-black/70 text-white text-xs px-2 py-1 rounded-md transition"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ) : (
+                  <label className="flex items-center gap-2 cursor-pointer text-sm text-stone-400 hover:text-stone-600 transition">
+                    <span className="px-3 py-2 border border-dashed border-stone-300 rounded-lg hover:border-stone-400 transition">
+                      + Add photo
+                    </span>
+                    <input type="file" accept="image/*" onChange={handleImageChange} className="hidden" />
+                  </label>
+                )}
+              </div>
+
               {error && <p className="text-red-500 text-xs mb-3">{error}</p>}
               <button
                 type="submit"
@@ -399,21 +464,31 @@ export default function Home() {
                 <li key={note.id}>
                   <Link
                     href={`/entry/${note.entry_date}`}
-                    className="block bg-white border border-stone-200 rounded-xl p-5 shadow-sm hover:border-stone-300 transition group"
+                    className="flex gap-4 bg-white border border-stone-200 rounded-xl p-5 shadow-sm hover:border-stone-300 transition group"
                   >
-                    <div className="flex items-center justify-between gap-4 mb-2">
-                      <span className="font-medium text-stone-800 group-hover:text-stone-900 truncate">
-                        {note.title}
-                      </span>
-                      <span className="text-xs text-stone-400 shrink-0">
-                        {toLocalDate(note.entry_date).toLocaleDateString("en-US", {
-                          month: "short", day: "numeric", year: "numeric",
-                        })}
-                      </span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-4 mb-2">
+                        <span className="font-medium text-stone-800 group-hover:text-stone-900 truncate">
+                          {note.title}
+                        </span>
+                        <span className="text-xs text-stone-400 shrink-0">
+                          {toLocalDate(note.entry_date).toLocaleDateString("en-US", {
+                            month: "short", day: "numeric", year: "numeric",
+                          })}
+                        </span>
+                      </div>
+                      <p className="text-sm text-stone-500 line-clamp-2 whitespace-pre-wrap">
+                        {note.content}
+                      </p>
                     </div>
-                    <p className="text-sm text-stone-500 line-clamp-2 whitespace-pre-wrap">
-                      {note.content}
-                    </p>
+                    {note.image_url && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={note.image_url}
+                        alt=""
+                        className="w-16 h-16 object-cover rounded-lg shrink-0"
+                      />
+                    )}
                   </Link>
                 </li>
               ))}

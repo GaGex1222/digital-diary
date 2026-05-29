@@ -5,6 +5,7 @@ export type DiaryEntry = {
   title: string;
   content: string;
   entry_date: string;
+  image_url: string | null;
   created_at: string;
   updated_at: string;
 };

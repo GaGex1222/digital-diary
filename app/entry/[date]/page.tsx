@@ -12,6 +12,7 @@ export default function EntryPage() {
 
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
 
@@ -19,7 +20,7 @@ export default function EntryPage() {
     async function load() {
       const { data } = await supabase
         .from("diary_entries")
-        .select("title, content")
+        .select("title, content, image_url")
         .eq("entry_date", date)
         .maybeSingle();
 
@@ -28,6 +29,7 @@ export default function EntryPage() {
       } else {
         setTitle(data.title);
         setContent(data.content);
+        setImageUrl(data.image_url ?? null);
       }
       setLoading(false);
     }
@@ -72,6 +74,16 @@ export default function EntryPage() {
 
         <p className="text-xs text-stone-400 mb-2 uppercase tracking-widest">{formatDate(date)}</p>
         <h1 className="text-3xl font-semibold tracking-tight text-stone-800 mb-8">{title}</h1>
+
+        {imageUrl && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={imageUrl}
+            alt="Entry image"
+            className="w-full rounded-xl mb-8 object-cover max-h-[480px]"
+          />
+        )}
+
         <p className="text-stone-600 text-base leading-relaxed whitespace-pre-wrap">{content}</p>
       </div>
     </main>
