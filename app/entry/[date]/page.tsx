@@ -12,7 +12,7 @@ export default function EntryPage() {
 
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
-  const [media, setMedia] = useState<{ id: string; url: string; media_type: string }[]>([]);
+  const [media, setMedia] = useState<{ id: string; url: string; media_type: string; drive_file_id: string | null }[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
 
@@ -31,7 +31,7 @@ export default function EntryPage() {
         setContent(data.content);
         const { data: mediaData } = await supabase
           .from("entry_media")
-          .select("id, url, media_type")
+          .select("id, url, media_type, drive_file_id")
           .eq("entry_id", data.id)
           .order("created_at", { ascending: true });
         setMedia(mediaData ?? []);
@@ -84,7 +84,9 @@ export default function EntryPage() {
           <div className="grid grid-cols-2 gap-3 mb-8">
             {media.map((m) =>
               m.media_type === "video" ? (
-                <iframe key={m.id} src={m.url} className={`w-full rounded-xl ${media.length === 1 ? "col-span-2 h-72" : "col-span-1 h-48"}`} allow="autoplay" allowFullScreen />
+                m.drive_file_id
+                  ? <iframe key={m.id} src={m.url} className={`w-full rounded-xl ${media.length === 1 ? "col-span-2 h-72" : "col-span-1 h-48"}`} allow="autoplay" allowFullScreen />
+                  : <video key={m.id} src={m.url} controls className={`w-full rounded-xl object-cover max-h-72 ${media.length === 1 ? "col-span-2" : "col-span-1"}`} />
               ) : (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img key={m.id} src={m.url} alt="" className={`w-full rounded-xl object-cover max-h-72 ${media.length === 1 ? "col-span-2" : "col-span-1"}`} />
