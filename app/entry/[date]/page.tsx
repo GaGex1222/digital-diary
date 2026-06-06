@@ -2,7 +2,7 @@
 
 export const dynamic = "force-dynamic";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
@@ -15,6 +15,15 @@ export default function EntryPage() {
   const [media, setMedia] = useState<{ id: string; url: string; media_type: string; drive_file_id: string | null }[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [lightbox, setLightbox] = useState<{ url: string; type: string } | null>(null);
+
+  const closeLightbox = useCallback(() => setLightbox(null), []);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") closeLightbox(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [closeLightbox]);
 
   useEffect(() => {
     async function load() {
@@ -84,12 +93,58 @@ export default function EntryPage() {
           <div className="grid grid-cols-2 gap-3 mb-8">
             {media.map((m) =>
               m.media_type === "video" ? (
-                <iframe key={m.id} src={m.url} className={`w-full rounded-xl border-0 ${media.length === 1 ? "col-span-2 h-72" : "col-span-1 h-48"}`} allow="autoplay" allowFullScreen />
+                <div key={m.id} className={`relative group ${media.length === 1 ? "col-span-2" : "col-span-1"}`}>
+                  <iframe src={m.url} className={`w-full rounded-xl border-0 ${media.length === 1 ? "h-72" : "h-48"}`} allow="autoplay" allowFullScreen />
+                  <button
+                    onClick={() => setLightbox({ url: m.url, type: "video" })}
+                    className="absolute top-2 right-2 bg-black/50 hover:bg-black/70 text-white rounded-lg px-2 py-1 text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    ⛶ Expand
+                  </button>
+                </div>
               ) : (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img key={m.id} src={m.url} alt="" className={`w-full rounded-xl object-cover max-h-72 ${media.length === 1 ? "col-span-2" : "col-span-1"}`} />
+                <div key={m.id} className={`relative group ${media.length === 1 ? "col-span-2" : "col-span-1"}`}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={m.url}
+                    alt=""
+                    className="w-full rounded-xl object-cover max-h-72 cursor-pointer"
+                    onClick={() => setLightbox({ url: m.url, type: "image" })}
+                  />
+                  <button
+                    onClick={() => setLightbox({ url: m.url, type: "image" })}
+                    className="absolute top-2 right-2 bg-black/50 hover:bg-black/70 text-white rounded-lg px-2 py-1 text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    ⛶ Expand
+                  </button>
+                </div>
               )
             )}
+          </div>
+        )}
+
+        {lightbox && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm"
+            onClick={closeLightbox}
+          >
+            <div
+              className="relative max-w-5xl max-h-[90vh] w-full mx-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                onClick={closeLightbox}
+                className="absolute -top-10 right-0 text-white text-2xl font-light hover:text-stone-300 transition"
+              >
+                ✕
+              </button>
+              {lightbox.type === "image" ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={lightbox.url} alt="" className="max-w-full max-h-[85vh] object-contain rounded-xl mx-auto block" />
+              ) : (
+                <iframe src={lightbox.url} className="w-full h-[70vh] rounded-xl border-0" allow="autoplay" allowFullScreen />
+              )}
+            </div>
           </div>
         )}
 
