@@ -206,6 +206,7 @@ export default function Home() {
   const [compressing, setCompressing] = useState(false);
   const [compressionProgress, setCompressionProgress] = useState(0);
   const [dragOver, setDragOver] = useState(false);
+  const [driveUser, setDriveUser] = useState<string | null>(null);
 
   // ── Data fetching ────────────────────────────────────────────────────────────
   async function fetchEntries() {
@@ -262,7 +263,12 @@ export default function Home() {
     setLoadingEntry(false);
   }
 
-  useEffect(() => { fetchEntries(); }, []);
+  useEffect(() => {
+    fetchEntries();
+    fetch("/api/drive/user")
+      .then((r) => r.json())
+      .then((d) => { if (d.email) setDriveUser(d.email); });
+  }, []);
   useEffect(() => { loadEntryForDate(selectedDate); }, [selectedDate]);
 
   // ── Compression ──────────────────────────────────────────────────────────────
@@ -447,7 +453,22 @@ export default function Home() {
     <main className="min-h-screen bg-stone-50 text-stone-800">
       <div className="max-w-2xl mx-auto px-4 py-12">
         <h1 className="text-3xl font-semibold mb-1 tracking-tight">My Diary</h1>
-        <p className="text-stone-400 text-sm mb-8">A quiet place for your thoughts.</p>
+        <div className="flex items-center gap-2 mb-8">
+          <p className="text-stone-400 text-sm">A quiet place for your thoughts.</p>
+          {driveUser && (
+            <span className="ml-auto flex items-center gap-1.5 text-xs text-stone-400 bg-white border border-stone-200 rounded-full px-3 py-1">
+              <svg className="w-3 h-3" viewBox="0 0 87.3 78" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M6.6 66.85l3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3L27.5 51H0c0 1.55.4 3.1 1.2 4.5z" fill="#0066DA"/>
+                <path d="M43.65 25L29.9 0c-1.35.8-2.5 1.9-3.3 3.3L1.2 46.5C.4 47.9 0 49.45 0 51h27.5z" fill="#00AC47"/>
+                <path d="M73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75L86.1 55.5c.8-1.4 1.2-2.95 1.2-4.5H59.8l5.85 11.05z" fill="#EA4335"/>
+                <path d="M43.65 25L57.4 0H29.9z" fill="#00832D"/>
+                <path d="M59.8 51H87.3c0-1.55-.4-3.1-1.2-4.5L60.8 3.3C60 1.9 58.85.8 57.5 0L43.65 25z" fill="#2684FC"/>
+                <path d="M27.5 51l-13.75 25.8c1.35.8 2.9 1.2 4.5 1.2h51.4c1.6 0 3.15-.45 4.5-1.2L59.8 51z" fill="#FFBA00"/>
+              </svg>
+              {driveUser}
+            </span>
+          )}
+        </div>
 
         {/* Heatmap */}
         <div className="bg-white border border-stone-200 rounded-xl p-5 shadow-sm mb-5">
