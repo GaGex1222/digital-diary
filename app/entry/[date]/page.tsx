@@ -84,7 +84,7 @@ export default function EntryPage() {
           <div className="grid grid-cols-2 gap-3 mb-8">
             {media.map((m) =>
               m.media_type === "video" ? (
-                <video key={m.id} src={m.url} controls className="w-full rounded-xl object-cover max-h-72 col-span-1" />
+                <iframe key={m.id} src={m.url} className={`w-full rounded-xl ${media.length === 1 ? "col-span-2 h-72" : "col-span-1 h-48"}`} allow="autoplay" allowFullScreen />
               ) : (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img key={m.id} src={m.url} alt="" className={`w-full rounded-xl object-cover max-h-72 ${media.length === 1 ? "col-span-2" : "col-span-1"}`} />

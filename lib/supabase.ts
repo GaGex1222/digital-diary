@@ -22,6 +22,7 @@ export type EntryMedia = {
   url: string;
   media_type: "image" | "video";
   size_bytes: number | null;
+  drive_file_id: string | null;
   created_at: string;
 };
 

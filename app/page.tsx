@@ -345,8 +345,13 @@ export default function Home() {
   }
 
   async function removeSavedMedia(media: EntryMedia) {
-    const path = media.url.split("/diary-images/")[1];
-    if (path) await supabase.storage.from("diary-images").remove([path]);
+    if (media.drive_file_id) {
+      await fetch(`/api/drive/delete/${media.drive_file_id}`, { method: "DELETE" });
+    } else {
+      // fallback: old Supabase storage entries
+      const path = media.url.split("/diary-images/")[1];
+      if (path) await supabase.storage.from("diary-images").remove([path]);
+    }
     await supabase.from("entry_media").delete().eq("id", media.id);
     setSavedMedia((prev) => prev.filter((m) => m.id !== media.id));
     fetchEntries();
@@ -354,12 +359,19 @@ export default function Home() {
 
   async function uploadAllPendingMedia(entryId: string) {
     for (const item of pendingMedia) {
-      const ext = item.type === "video" ? "mp4" : "jpg";
-      const path = `${entryId}-${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-      const { error } = await supabase.storage.from("diary-images").upload(path, item.file, { upsert: true });
-      if (error) continue;
-      const publicUrl = supabase.storage.from("diary-images").getPublicUrl(path).data.publicUrl;
-      await supabase.from("entry_media").insert({ entry_id: entryId, url: publicUrl, media_type: item.type, size_bytes: item.file.size });
+      const fd = new FormData();
+      fd.append("file", item.file);
+      fd.append("mediaType", item.type);
+      const res = await fetch("/api/drive/upload", { method: "POST", body: fd });
+      if (!res.ok) continue;
+      const { fileId, url } = await res.json();
+      await supabase.from("entry_media").insert({
+        entry_id: entryId,
+        url,
+        media_type: item.type,
+        size_bytes: item.file.size,
+        drive_file_id: fileId,
+      });
     }
     setPendingMedia([]);
   }
@@ -405,8 +417,12 @@ export default function Home() {
   async function handleDelete() {
     if (!currentEntryId) return;
     for (const m of savedMedia) {
-      const path = m.url.split("/diary-images/")[1];
-      if (path) await supabase.storage.from("diary-images").remove([path]);
+      if (m.drive_file_id) {
+        await fetch(`/api/drive/delete/${m.drive_file_id}`, { method: "DELETE" });
+      } else {
+        const path = m.url.split("/diary-images/")[1];
+        if (path) await supabase.storage.from("diary-images").remove([path]);
+      }
     }
     await supabase.from("diary_entries").delete().eq("id", currentEntryId);
     setTitle(""); setContent(""); setCurrentEntryId(null);
@@ -472,7 +488,7 @@ export default function Home() {
                   {savedMedia.map((m) => (
                     <div key={m.id} className="relative aspect-square group">
                       {m.media_type === "video" ? (
-                        <video src={m.url} className="w-full h-full object-cover rounded-lg" muted />
+                        <iframe src={m.url} className="w-full h-full rounded-lg" allow="autoplay" />
                       ) : (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img src={m.url} alt="" className="w-full h-full object-cover rounded-lg" />
