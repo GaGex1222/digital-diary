@@ -204,6 +204,7 @@ export default function Home() {
   const [pendingMedia, setPendingMedia] = useState<PendingMedia[]>([]);
   const [compressing, setCompressing] = useState(false);
   const [compressionProgress, setCompressionProgress] = useState(0);
+  const [dragOver, setDragOver] = useState(false);
 
   // ── Data fetching ────────────────────────────────────────────────────────────
   async function fetchEntries() {
@@ -303,6 +304,25 @@ export default function Home() {
   async function handleMediaChange(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? []);
     e.target.value = "";
+    for (const file of files) {
+      if (file.type.startsWith("video/")) {
+        const compressed = await compressVideo(file);
+        setPendingMedia((prev) => [...prev, { file: compressed, preview: URL.createObjectURL(compressed), type: "video" }]);
+      } else {
+        const compressed = await compressImage(file);
+        setPendingMedia((prev) => [...prev, { file: compressed, preview: URL.createObjectURL(compressed), type: "image" }]);
+      }
+    }
+  }
+
+  async function handleDrop(e: React.DragEvent) {
+    e.preventDefault();
+    setDragOver(false);
+    if (compressing) return;
+    const files = Array.from(e.dataTransfer.files).filter(
+      (f) => f.type.startsWith("image/") || f.type.startsWith("video/")
+    );
+    if (!files.length) return;
     for (const file of files) {
       if (file.type.startsWith("video/")) {
         const compressed = await compressVideo(file);
@@ -485,11 +505,22 @@ export default function Home() {
                 </div>
               )}
 
-              {/* Add media button */}
-              <label className={`inline-flex items-center gap-1.5 mb-4 cursor-pointer text-sm text-stone-400 hover:text-stone-600 transition ${compressing ? "pointer-events-none opacity-50" : ""}`}>
-                <span className="px-3 py-2 border border-dashed border-stone-300 rounded-lg hover:border-stone-400 transition">
-                  + Add photos / videos
+              {/* Drop zone */}
+              <label
+                className={[
+                  "flex flex-col items-center justify-center gap-1.5 mb-4 w-full py-6 border-2 border-dashed rounded-xl cursor-pointer transition",
+                  compressing ? "pointer-events-none opacity-50" : "",
+                  dragOver ? "border-stone-500 bg-stone-100" : "border-stone-200 hover:border-stone-400 hover:bg-stone-50",
+                ].join(" ")}
+                onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+                onDragLeave={() => setDragOver(false)}
+                onDrop={handleDrop}
+              >
+                <span className="text-2xl">📎</span>
+                <span className="text-sm text-stone-400">
+                  {dragOver ? "Drop to upload" : "Drop photos / videos here"}
                 </span>
+                <span className="text-xs text-stone-300">or click to browse</span>
                 <input type="file" accept="image/*,video/*" multiple onChange={handleMediaChange} className="hidden" disabled={compressing} />
               </label>
 
