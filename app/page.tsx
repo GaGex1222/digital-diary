@@ -365,35 +365,18 @@ export default function Home() {
 
   async function uploadAllPendingMedia(entryId: string) {
     for (const item of pendingMedia) {
-      let url: string | null = null;
-      let driveFileId: string | null = null;
-
-      if (item.type === "image") {
-        // Images → Google Drive
-        const fd = new FormData();
-        fd.append("file", item.file);
-        fd.append("mediaType", "image");
-        const res = await fetch("/api/drive/upload", { method: "POST", body: fd });
-        if (!res.ok) continue;
-        const data = await res.json();
-        url = data.url;
-        driveFileId = data.fileId;
-      } else {
-        // Videos → Supabase Storage (direct URL needed for <video> playback)
-        const ext = "mp4";
-        const path = `${entryId}-${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-        const { error } = await supabase.storage.from("diary-images").upload(path, item.file, { upsert: true });
-        if (error) continue;
-        url = supabase.storage.from("diary-images").getPublicUrl(path).data.publicUrl;
-      }
-
-      if (!url) continue;
+      const fd = new FormData();
+      fd.append("file", item.file);
+      fd.append("mediaType", item.type);
+      const res = await fetch("/api/drive/upload", { method: "POST", body: fd });
+      if (!res.ok) continue;
+      const { fileId, url } = await res.json();
       await supabase.from("entry_media").insert({
         entry_id: entryId,
         url,
         media_type: item.type,
         size_bytes: item.file.size,
-        drive_file_id: driveFileId,
+        drive_file_id: fileId,
       });
     }
     setPendingMedia([]);
@@ -526,9 +509,7 @@ export default function Home() {
                   {savedMedia.map((m) => (
                     <div key={m.id} className="relative aspect-square group">
                       {m.media_type === "video" ? (
-                        m.drive_file_id
-                          ? <iframe src={m.url} className="w-full h-full rounded-lg" allow="autoplay" />
-                          : <video src={m.url} className="w-full h-full object-cover rounded-lg" muted controls />
+                        <iframe src={m.url} className="w-full h-full rounded-lg border-0" allow="autoplay" />
                       ) : (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img src={m.url} alt="" className="w-full h-full object-cover rounded-lg" />
