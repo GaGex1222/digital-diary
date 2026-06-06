@@ -16,6 +16,14 @@ export type EntryMeta = {
   title: string;
 };
 
+export type EntryMedia = {
+  id: string;
+  entry_id: string;
+  url: string;
+  media_type: "image" | "video";
+  created_at: string;
+};
+
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 

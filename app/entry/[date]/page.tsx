@@ -12,7 +12,7 @@ export default function EntryPage() {
 
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
-  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [media, setMedia] = useState<{ id: string; url: string; media_type: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
 
@@ -20,7 +20,7 @@ export default function EntryPage() {
     async function load() {
       const { data } = await supabase
         .from("diary_entries")
-        .select("title, content, image_url")
+        .select("id, title, content")
         .eq("entry_date", date)
         .maybeSingle();
 
@@ -29,7 +29,12 @@ export default function EntryPage() {
       } else {
         setTitle(data.title);
         setContent(data.content);
-        setImageUrl(data.image_url ?? null);
+        const { data: mediaData } = await supabase
+          .from("entry_media")
+          .select("id, url, media_type")
+          .eq("entry_id", data.id)
+          .order("created_at", { ascending: true });
+        setMedia(mediaData ?? []);
       }
       setLoading(false);
     }
@@ -75,13 +80,17 @@ export default function EntryPage() {
         <p className="text-xs text-stone-400 mb-2 uppercase tracking-widest">{formatDate(date)}</p>
         <h1 className="text-3xl font-semibold tracking-tight text-stone-800 mb-8">{title}</h1>
 
-        {imageUrl && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={imageUrl}
-            alt="Entry image"
-            className="w-full rounded-xl mb-8 object-cover max-h-[480px]"
-          />
+        {media.length > 0 && (
+          <div className="grid grid-cols-2 gap-3 mb-8">
+            {media.map((m) =>
+              m.media_type === "video" ? (
+                <video key={m.id} src={m.url} controls className="w-full rounded-xl object-cover max-h-72 col-span-1" />
+              ) : (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img key={m.id} src={m.url} alt="" className={`w-full rounded-xl object-cover max-h-72 ${media.length === 1 ? "col-span-2" : "col-span-1"}`} />
+              )
+            )}
+          </div>
         )}
 
         <p className="text-stone-600 text-base leading-relaxed whitespace-pre-wrap">{content}</p>
