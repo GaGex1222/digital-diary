@@ -1,6 +1,8 @@
 import { google } from "googleapis";
 import { NextRequest, NextResponse } from "next/server";
 
+export const runtime = "nodejs";
+
 function getDrive() {
   const oauth2 = new google.auth.OAuth2(
     process.env.GOOGLE_CLIENT_ID,

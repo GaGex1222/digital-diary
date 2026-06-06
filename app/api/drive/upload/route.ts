@@ -1,6 +1,9 @@
 import { google } from "googleapis";
-import { Readable } from "stream";
+import { PassThrough } from "stream";
 import { NextRequest, NextResponse } from "next/server";
+
+export const runtime = "nodejs";
+export const maxDuration = 60;
 
 function getDrive() {
   const oauth2 = new google.auth.OAuth2(
@@ -21,7 +24,11 @@ export async function POST(req: NextRequest) {
 
     const drive = getDrive();
     const buffer = Buffer.from(await file.arrayBuffer());
-    const stream = Readable.from(buffer);
+
+    // PassThrough is more reliable than Readable.from in Next.js API routes
+    const stream = new PassThrough();
+    stream.end(buffer);
+
     const folderId = process.env.GOOGLE_DRIVE_FOLDER_ID;
 
     const res = await drive.files.create({
@@ -41,8 +48,6 @@ export async function POST(req: NextRequest) {
       requestBody: { role: "reader", type: "anyone" },
     });
 
-    // Images: thumbnail URL (renders in <img> tags)
-    // Videos: preview URL (renders in <iframe>)
     const url =
       mediaType === "video"
         ? `https://drive.google.com/file/d/${fileId}/preview`
@@ -50,7 +55,8 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ fileId, url });
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : "Unknown error";
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[Drive Upload Error]", msg);
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

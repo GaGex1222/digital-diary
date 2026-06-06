@@ -1,6 +1,8 @@
 import { google } from "googleapis";
 import { NextResponse } from "next/server";
 
+export const runtime = "nodejs";
+
 export async function GET() {
   try {
     const oauth2 = new google.auth.OAuth2(
