@@ -529,7 +529,7 @@ export default function Home() {
                           <video src={thumb.url} className="w-16 h-16 object-cover rounded-lg shrink-0" muted />
                         ) : (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img src={thumb.url} alt="" className="w-16 h-16 object-cover rounded-lg shrink-0" />
+                          <img src={thumb.url} alt="" className="w-16 h-16 object-cover rounded-lg shrink-0" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
                         )
                       )}
                     </Link>
