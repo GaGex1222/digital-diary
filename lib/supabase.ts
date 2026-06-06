@@ -21,6 +21,7 @@ export type EntryMedia = {
   entry_id: string;
   url: string;
   media_type: "image" | "video";
+  size_bytes: number | null;
   created_at: string;
 };
 

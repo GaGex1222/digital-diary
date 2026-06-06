@@ -188,6 +188,7 @@ export default function Home() {
   const [entries, setEntries] = useState<EntryMeta[]>([]);
   const [allNotes, setAllNotes] = useState<DiaryEntry[]>([]);
   const [entryMediaMap, setEntryMediaMap] = useState<Record<string, EntryMedia>>({});
+  const [entrySizeMap, setEntrySizeMap] = useState<Record<string, { count: number; bytes: number }>>({});
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState(todayStr);
   const [calMonth, setCalMonth] = useState(new Date().getMonth());
@@ -222,14 +223,19 @@ export default function Home() {
     if (rows.length > 0) {
       const { data: mediaData } = await supabase
         .from("entry_media")
-        .select("id, entry_id, url, media_type, created_at")
+        .select("id, entry_id, url, media_type, size_bytes, created_at")
         .in("entry_id", rows.map((r) => r.id))
         .order("created_at", { ascending: true });
       const map: Record<string, EntryMedia> = {};
+      const sizeMap: Record<string, { count: number; bytes: number }> = {};
       for (const m of mediaData ?? []) {
         if (!map[m.entry_id]) map[m.entry_id] = m as EntryMedia;
+        if (!sizeMap[m.entry_id]) sizeMap[m.entry_id] = { count: 0, bytes: 0 };
+        sizeMap[m.entry_id].count += 1;
+        sizeMap[m.entry_id].bytes += m.size_bytes ?? 0;
       }
       setEntryMediaMap(map);
+      setEntrySizeMap(sizeMap);
     }
     setLoading(false);
   }
@@ -353,7 +359,7 @@ export default function Home() {
       const { error } = await supabase.storage.from("diary-images").upload(path, item.file, { upsert: true });
       if (error) continue;
       const publicUrl = supabase.storage.from("diary-images").getPublicUrl(path).data.publicUrl;
-      await supabase.from("entry_media").insert({ entry_id: entryId, url: publicUrl, media_type: item.type });
+      await supabase.from("entry_media").insert({ entry_id: entryId, url: publicUrl, media_type: item.type, size_bytes: item.file.size });
     }
     setPendingMedia([]);
   }
@@ -406,6 +412,12 @@ export default function Home() {
     setTitle(""); setContent(""); setCurrentEntryId(null);
     setSavedMedia([]); setPendingMedia([]);
     fetchEntries();
+  }
+
+  function formatBytes(bytes: number) {
+    if (bytes === 0) return null;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   }
 
   function formatSelectedDate(dateStr: string) {
@@ -542,6 +554,7 @@ export default function Home() {
             <ul className="space-y-3">
               {allNotes.map((note) => {
                 const thumb = entryMediaMap[note.id];
+                const sizeInfo = entrySizeMap[note.id];
                 return (
                   <li key={note.id}>
                     <Link href={`/entry/${note.entry_date}`}
@@ -554,6 +567,11 @@ export default function Home() {
                           </span>
                         </div>
                         <p className="text-sm text-stone-500 line-clamp-2 whitespace-pre-wrap">{note.content}</p>
+                        {sizeInfo && sizeInfo.count > 0 && (
+                          <p className="text-xs text-stone-400 mt-1.5">
+                            {sizeInfo.count} {sizeInfo.count === 1 ? "file" : "files"} · {formatBytes(sizeInfo.bytes)}
+                          </p>
+                        )}
                       </div>
                       {thumb && (
                         thumb.media_type === "video" ? (
