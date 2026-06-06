@@ -302,7 +302,7 @@ export default function Home() {
         setCompressionProgress(Math.round(Math.min(progress, 1) * 100));
       });
       await ff.writeFile(inName, await fetchFile(file));
-      await ff.exec(["-i", inName, "-vcodec", "libx264", "-crf", "36", "-preset", "ultrafast", "-vf", "scale=640:-2", "-acodec", "aac", "-b:a", "64k", outName]);
+      await ff.exec(["-i", inName, "-vcodec", "libx264", "-crf", "26", "-preset", "ultrafast", "-vf", "scale=1280:-2", "-acodec", "aac", "-b:a", "128k", outName]);
       const data = await ff.readFile(outName);
       await ff.deleteFile(inName);
       await ff.deleteFile(outName);
