@@ -94,10 +94,19 @@ export default function EntryPage() {
             {media.map((m) =>
               m.media_type === "video" ? (
                 <div key={m.id} className={`relative group ${media.length === 1 ? "col-span-2" : "col-span-1"}`}>
-                  <iframe src={m.url} className={`w-full rounded-xl border-0 ${media.length === 1 ? "h-72" : "h-48"}`} allow="autoplay" allowFullScreen />
+                  {/* 16:9 aspect-ratio wrapper so iframe never goes wacky on mobile */}
+                  <div className="relative w-full" style={{ paddingBottom: "56.25%" }}>
+                    <iframe
+                      src={m.url}
+                      className="absolute inset-0 w-full h-full rounded-xl border-0"
+                      allow="autoplay"
+                      allowFullScreen
+                    />
+                  </div>
                   <button
                     onClick={() => setLightbox({ url: m.url, type: "video" })}
-                    className="absolute top-2 right-2 bg-black/50 hover:bg-black/70 text-white rounded-lg px-2 py-1 text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="absolute top-2 right-2 bg-black/50 hover:bg-black/70 text-white rounded-lg px-2 py-1 text-xs
+                               opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
                   >
                     ⛶ Expand
                   </button>
@@ -113,7 +122,8 @@ export default function EntryPage() {
                   />
                   <button
                     onClick={() => setLightbox({ url: m.url, type: "image" })}
-                    className="absolute top-2 right-2 bg-black/50 hover:bg-black/70 text-white rounded-lg px-2 py-1 text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="absolute top-2 right-2 bg-black/50 hover:bg-black/70 text-white rounded-lg px-2 py-1 text-xs
+                               opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
                   >
                     ⛶ Expand
                   </button>
@@ -142,7 +152,9 @@ export default function EntryPage() {
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={lightbox.url} alt="" className="max-w-full max-h-[85vh] object-contain rounded-xl mx-auto block" />
               ) : (
-                <iframe src={lightbox.url} className="w-full h-[70vh] rounded-xl border-0" allow="autoplay" allowFullScreen />
+                <div className="relative w-full" style={{ paddingBottom: "56.25%" }}>
+                  <iframe src={lightbox.url} className="absolute inset-0 w-full h-full rounded-xl border-0" allow="autoplay" allowFullScreen />
+                </div>
               )}
             </div>
           </div>
