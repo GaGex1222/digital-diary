@@ -293,16 +293,54 @@ export default function Home() {
     setCompressing(true);
     setCompressionProgress(0);
     try {
+      // ── 1. Read duration via HTML5 video element ─────────────────────────────
+      const duration = await new Promise<number>((resolve, reject) => {
+        const vid = document.createElement("video");
+        vid.preload = "metadata";
+        const url = URL.createObjectURL(file);
+        vid.onloadedmetadata = () => { URL.revokeObjectURL(url); resolve(vid.duration); };
+        vid.onerror = reject;
+        vid.src = url;
+      });
+
+      // ── 2. Calculate bitrate to stay under 3 MB ──────────────────────────────
+      const TARGET_BYTES = 3 * 1024 * 1024;   // 3 MB in bytes
+      const AUDIO_KBPS   = 96;                 // reserved for audio track
+      const audioBytes   = (AUDIO_KBPS * 1000 / 8) * duration;
+      const videoBytes   = Math.max(0, TARGET_BYTES - audioBytes);
+      // bits ÷ duration ÷ 1000 → kbps; floor down so we never overshoot
+      const videoBitrateKbps = Math.max(80, Math.floor((videoBytes * 8) / duration / 1000));
+
+      // ── 3. Pick resolution that matches the bitrate budget ───────────────────
+      // Low bitrate + high res = blurry; scale down to let bits matter more.
+      let scale: string;
+      if      (videoBitrateKbps >= 1200) scale = "1280:-2";  // 720p-ish
+      else if (videoBitrateKbps >=  600) scale = "854:-2";   // 480p-ish
+      else if (videoBitrateKbps >=  300) scale = "640:-2";   // 360p-ish
+      else                               scale = "426:-2";   // 240p-ish
+
+      // ── 4. Run ffmpeg with calculated bitrate ────────────────────────────────
       const ff = await getFFmpeg();
       const { fetchFile } = await import("@ffmpeg/util");
       const ts = Date.now();
-      const inName = `in_${ts}.mp4`;
+      const inName  = `in_${ts}.mp4`;
       const outName = `out_${ts}.mp4`;
       ff.on("progress", ({ progress }: { progress: number }) => {
         setCompressionProgress(Math.round(Math.min(progress, 1) * 100));
       });
       await ff.writeFile(inName, await fetchFile(file));
-      await ff.exec(["-i", inName, "-vcodec", "libx264", "-crf", "26", "-preset", "ultrafast", "-vf", "scale=1280:-2", "-acodec", "aac", "-b:a", "128k", outName]);
+      await ff.exec([
+        "-i",       inName,
+        "-vcodec",  "libx264",
+        "-b:v",     `${videoBitrateKbps}k`,
+        "-maxrate", `${videoBitrateKbps}k`,
+        "-bufsize", `${videoBitrateKbps * 2}k`,
+        "-preset",  "ultrafast",
+        "-vf",      `scale=${scale}`,
+        "-acodec",  "aac",
+        "-b:a",     `${AUDIO_KBPS}k`,
+        outName,
+      ]);
       const data = await ff.readFile(outName);
       await ff.deleteFile(inName);
       await ff.deleteFile(outName);
