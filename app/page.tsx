@@ -550,6 +550,11 @@ export default function Home() {
           <div className="mt-10">
             <h2 className="text-xs font-medium text-stone-400 uppercase tracking-widest mb-4">
               All entries · {allNotes.length}
+              {Object.values(entrySizeMap).reduce((a, b) => a + b.bytes, 0) > 0 && (
+                <span className="ml-2 font-normal normal-case tracking-normal text-stone-300">
+                  · {formatBytes(Object.values(entrySizeMap).reduce((a, b) => a + b.bytes, 0))} stored
+                </span>
+              )}
             </h2>
             <ul className="space-y-3">
               {allNotes.map((note) => {
