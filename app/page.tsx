@@ -407,7 +407,11 @@ export default function Home() {
       fd.append("file", item.file);
       fd.append("mediaType", item.type);
       const res = await fetch("/api/drive/upload", { method: "POST", body: fd });
-      if (!res.ok) continue;
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setError(`Upload failed: ${body.error ?? res.statusText}`);
+        continue;
+      }
       const { fileId, url } = await res.json();
       await supabase.from("entry_media").insert({
         entry_id: entryId,
